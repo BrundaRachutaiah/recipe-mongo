@@ -1,24 +1,44 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 const recipeSchema = new mongoose.Schema(
   {
-    title: { type: String, required: true },
-    author: { type: String, required: true },
+    title: {
+      type: String,
+      required: [true, "Please add a title"],
+      trim: true,
+    },
+    author: {
+      type: String,
+      required: [true, "Please add an author"],
+      trim: true,
+    },
     difficulty: {
       type: String,
+      required: [true, "Please add a difficulty level"],
       enum: ["Easy", "Intermediate", "Difficult"],
-      required: true,
     },
-    prepTime: { type: Number, required: true },
-    cookTime: { type: Number, required: true },
-    ingredients: { type: [String], required: true },
-    instructions: { type: [String], required: true },
-    imageUrl: { type: String, required: true },
+    prepTime: {
+      type: Number,
+      required: [true, "Please add preparation time"],
+    },
+    cookTime: {
+      type: Number,
+      required: [true, "Please add cooking time"],
+    },
+    ingredients: {
+      type: [String],
+      required: [true, "Please add ingredients"],
+    },
+    instructions: {
+      type: [String],
+      required: [true, "Please add instructions"],
+    },
+    imageUrl: {
+      type: String,
+      required: [true, "Please add an image URL"],
+    },
   },
   { timestamps: true }
 );
 
-const Recipe =
-  mongoose.models.Recipe || mongoose.model("Recipe", recipeSchema);
-
-export default Recipe;
+module.exports = mongoose.model("Recipe", recipeSchema);
