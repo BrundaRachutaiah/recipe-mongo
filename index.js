@@ -7,24 +7,31 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
-// ✅ MongoDB Connection
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB connected successfully"))
-  .catch((err) => {
-    console.error("❌ MongoDB connection failed:", err.message);
-    process.exit(1);
-  });
+/** ✅ Persistent MongoDB Connection for Vercel **/
+let isConnected = false;
+async function connectDB() {
+  if (isConnected) return;
+  try {
+    const conn = await mongoose.connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 5000,
+    });
+    isConnected = true;
+    console.log("✅ MongoDB connected:", conn.connection.host);
+  } catch (error) {
+    console.error("❌ MongoDB connection error:", error.message);
+    throw new Error("Database connection failed");
+  }
+}
 
-// ✅ Root route
+/** ✅ Root route **/
 app.get("/", (req, res) => {
-  res.send("🍽️ Recipe API is running!");
+  res.status(200).json({ message: "🍽️ Recipe API running successfully!" });
 });
 
-
-// ✅ (3) Create a new recipe
+/** ✅ Create new recipe **/
 app.post("/recipes", async (req, res) => {
   try {
+    await connectDB();
     const recipe = new Recipe(req.body);
     await recipe.save();
     res.status(201).json(recipe);
@@ -34,114 +41,99 @@ app.post("/recipes", async (req, res) => {
   }
 });
 
-
-// ✅ (6) Get all recipes
+/** ✅ Get all recipes **/
 app.get("/recipes", async (req, res) => {
   try {
+    await connectDB();
     const recipes = await Recipe.find();
     res.status(200).json(recipes);
   } catch (error) {
-    console.error("Error fetching recipes:", error);
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-
-// ✅ (7) Get recipe by title
+/** ✅ Get recipe by title **/
 app.get("/recipes/title/:title", async (req, res) => {
   try {
+    await connectDB();
     const recipe = await Recipe.findOne({ title: req.params.title });
     if (!recipe) return res.status(404).json({ message: "Recipe not found" });
     res.status(200).json(recipe);
-  } catch (error) {
-    console.error("Error fetching recipe by title:", error);
+  } catch {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-
-// ✅ (8) Get all recipes by author
+/** ✅ Get recipes by author **/
 app.get("/recipes/author/:author", async (req, res) => {
   try {
+    await connectDB();
     const recipes = await Recipe.find({ author: req.params.author });
-    if (recipes.length === 0)
-      return res.status(404).json({ message: "No recipes found for this author" });
+    if (!recipes.length)
+      return res.status(404).json({ message: "No recipes found" });
     res.status(200).json(recipes);
-  } catch (error) {
-    console.error("Error fetching recipes by author:", error);
+  } catch {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-
-// ✅ (9) Get all "Easy" difficulty recipes
+/** ✅ Get easy recipes **/
 app.get("/recipes/difficulty/easy", async (req, res) => {
   try {
+    await connectDB();
     const recipes = await Recipe.find({ difficulty: "Easy" });
-    if (recipes.length === 0)
-      return res.status(404).json({ message: "No easy recipes found" });
     res.status(200).json(recipes);
-  } catch (error) {
-    console.error("Error fetching easy recipes:", error);
+  } catch {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-
-// ✅ (10) Update recipe difficulty by ID
+/** ✅ Update difficulty by ID **/
 app.put("/recipes/:id/difficulty", async (req, res) => {
   try {
-    const { difficulty } = req.body;
-    const updatedRecipe = await Recipe.findByIdAndUpdate(
+    await connectDB();
+    const updated = await Recipe.findByIdAndUpdate(
       req.params.id,
-      { difficulty },
+      { difficulty: req.body.difficulty },
       { new: true }
     );
-    if (!updatedRecipe)
-      return res.status(404).json({ message: "Recipe not found" });
-    res.status(200).json(updatedRecipe);
-  } catch (error) {
-    console.error("Error updating difficulty:", error);
+    if (!updated) return res.status(404).json({ message: "Recipe not found" });
+    res.status(200).json(updated);
+  } catch {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-
-// ✅ (11) Update prepTime and cookTime by title
+/** ✅ Update time by title **/
 app.put("/recipes/title/:title/time", async (req, res) => {
   try {
-    const { prepTime, cookTime } = req.body;
-    const updatedRecipe = await Recipe.findOneAndUpdate(
+    await connectDB();
+    const updated = await Recipe.findOneAndUpdate(
       { title: req.params.title },
-      { prepTime, cookTime },
+      { prepTime: req.body.prepTime, cookTime: req.body.cookTime },
       { new: true }
     );
-    if (!updatedRecipe)
-      return res.status(404).json({ message: "Recipe not found" });
-    res.status(200).json(updatedRecipe);
-  } catch (error) {
-    console.error("Error updating recipe time:", error);
+    if (!updated) return res.status(404).json({ message: "Recipe not found" });
+    res.status(200).json(updated);
+  } catch {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-
-// ✅ (12) Delete recipe by ID
+/** ✅ Delete recipe **/
 app.delete("/recipes/:id", async (req, res) => {
   try {
+    await connectDB();
     const deleted = await Recipe.findByIdAndDelete(req.params.id);
-    if (!deleted)
-      return res.status(404).json({ message: "Recipe not found" });
+    if (!deleted) return res.status(404).json({ message: "Recipe not found" });
     res.status(200).json({ message: "Recipe deleted successfully" });
-  } catch (error) {
-    console.error("Error deleting recipe:", error);
+  } catch {
     res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-
-// ✅ Start Server (for local run)
-const PORT = process.env.PORT || 5000;
+/** ✅ Local server for testing **/
+const PORT = process.env.PORT || 5001;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
-export default app; // Needed for Vercel
+export default app;
