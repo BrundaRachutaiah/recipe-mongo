@@ -1,121 +1,147 @@
-const express = require('express');
-const dotenv = require('dotenv');
-const cors = require('cors');
-const connectDB = require('./db/db.connect');
-const Recipe = require('./models/recipe.model');
+import express from "express";
+import mongoose from "mongoose";
+import dotenv from "dotenv";
+import Recipe from "./models/recipe.model.js";
 
-// Load environment variables
 dotenv.config();
-
-// Connect to MongoDB
-connectDB();
-
-// Initialize app
 const app = express();
-
-// Middleware
-app.use(cors());
 app.use(express.json());
 
-// ✅ CREATE a new recipe
-app.post('/api/recipes', async (req, res) => {
+// ✅ MongoDB Connection
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ MongoDB connected successfully"))
+  .catch((err) => {
+    console.error("❌ MongoDB connection failed:", err.message);
+    process.exit(1);
+  });
+
+// ✅ Root route
+app.get("/", (req, res) => {
+  res.send("🍽️ Recipe API is running!");
+});
+
+
+// ✅ (3) Create a new recipe
+app.post("/recipes", async (req, res) => {
   try {
-    const recipe = await Recipe.create(req.body);
-    res.status(201).json({ success: true, data: recipe });
+    const recipe = new Recipe(req.body);
+    await recipe.save();
+    res.status(201).json(recipe);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Error creating recipe:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-// ✅ GET all recipes
-app.get('/api/recipes', async (req, res) => {
+
+// ✅ (6) Get all recipes
+app.get("/recipes", async (req, res) => {
   try {
     const recipes = await Recipe.find();
-    res.status(200).json({ success: true, count: recipes.length, data: recipes });
+    res.status(200).json(recipes);
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Error fetching recipes:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-// ✅ GET recipe by title
-app.get('/api/recipes/title/:title', async (req, res) => {
+
+// ✅ (7) Get recipe by title
+app.get("/recipes/title/:title", async (req, res) => {
   try {
     const recipe = await Recipe.findOne({ title: req.params.title });
-    if (!recipe) return res.status(404).json({ success: false, message: 'Recipe not found' });
-    res.status(200).json({ success: true, data: recipe });
+    if (!recipe) return res.status(404).json({ message: "Recipe not found" });
+    res.status(200).json(recipe);
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Error fetching recipe by title:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-// ✅ GET recipes by author
-app.get('/api/recipes/author/:author', async (req, res) => {
+
+// ✅ (8) Get all recipes by author
+app.get("/recipes/author/:author", async (req, res) => {
   try {
     const recipes = await Recipe.find({ author: req.params.author });
-    if (!recipes.length) return res.status(404).json({ success: false, message: 'No recipes found for this author' });
-    res.status(200).json({ success: true, count: recipes.length, data: recipes });
+    if (recipes.length === 0)
+      return res.status(404).json({ message: "No recipes found for this author" });
+    res.status(200).json(recipes);
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Error fetching recipes by author:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-// ✅ GET recipes by difficulty
-app.get('/api/recipes/difficulty/:difficulty', async (req, res) => {
+
+// ✅ (9) Get all "Easy" difficulty recipes
+app.get("/recipes/difficulty/easy", async (req, res) => {
   try {
-    const recipes = await Recipe.find({ difficulty: req.params.difficulty });
-    if (!recipes.length) return res.status(404).json({ success: false, message: 'No recipes found for this difficulty level' });
-    res.status(200).json({ success: true, count: recipes.length, data: recipes });
+    const recipes = await Recipe.find({ difficulty: "Easy" });
+    if (recipes.length === 0)
+      return res.status(404).json({ message: "No easy recipes found" });
+    res.status(200).json(recipes);
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Error fetching easy recipes:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-// ✅ UPDATE difficulty by ID
-app.put('/api/recipes/:id/difficulty', async (req, res) => {
+
+// ✅ (10) Update recipe difficulty by ID
+app.put("/recipes/:id/difficulty", async (req, res) => {
   try {
     const { difficulty } = req.body;
-    const recipe = await Recipe.findByIdAndUpdate(req.params.id, { difficulty }, { new: true, runValidators: true });
-    if (!recipe) return res.status(404).json({ success: false, message: 'Recipe not found' });
-    res.status(200).json({ success: true, data: recipe });
+    const updatedRecipe = await Recipe.findByIdAndUpdate(
+      req.params.id,
+      { difficulty },
+      { new: true }
+    );
+    if (!updatedRecipe)
+      return res.status(404).json({ message: "Recipe not found" });
+    res.status(200).json(updatedRecipe);
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    console.error("Error updating difficulty:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-// ✅ UPDATE prep and cook time by title
-app.put('/api/recipes/title/:title/times', async (req, res) => {
+
+// ✅ (11) Update prepTime and cookTime by title
+app.put("/recipes/title/:title/time", async (req, res) => {
   try {
     const { prepTime, cookTime } = req.body;
-    const recipe = await Recipe.findOneAndUpdate(
+    const updatedRecipe = await Recipe.findOneAndUpdate(
       { title: req.params.title },
       { prepTime, cookTime },
-      { new: true, runValidators: true }
+      { new: true }
     );
-    if (!recipe) return res.status(404).json({ success: false, message: 'Recipe not found' });
-    res.status(200).json({ success: true, data: { prepTime: recipe.prepTime, cookTime: recipe.cookTime } });
+    if (!updatedRecipe)
+      return res.status(404).json({ message: "Recipe not found" });
+    res.status(200).json(updatedRecipe);
   } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
+    console.error("Error updating recipe time:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-// ✅ DELETE recipe by ID
-app.delete('/api/recipes/:id', async (req, res) => {
+
+// ✅ (12) Delete recipe by ID
+app.delete("/recipes/:id", async (req, res) => {
   try {
-    const recipe = await Recipe.findByIdAndDelete(req.params.id);
-    if (!recipe) return res.status(404).json({ success: false, message: 'Recipe not found' });
-    res.status(200).json({ success: true, message: 'Recipe deleted successfully' });
+    const deleted = await Recipe.findByIdAndDelete(req.params.id);
+    if (!deleted)
+      return res.status(404).json({ message: "Recipe not found" });
+    res.status(200).json({ message: "Recipe deleted successfully" });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Error deleting recipe:", error);
+    res.status(500).json({ message: "Internal Server Error" });
   }
 });
 
-// ✅ Health check
-app.get('/api/health', (req, res) => res.status(200).json({ status: 'OK' }));
 
-// 404 handler
-app.use((req, res) => res.status(404).json({ message: 'Route not found' }));
-
-// Start server
-const PORT = process.env.PORT || 5001;
+// ✅ Start Server (for local run)
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+
+export default app; // Needed for Vercel
